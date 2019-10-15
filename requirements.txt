@@ -1,0 +1,8 @@
+click
+passlib
+prettytable
+psycopg2-binary
+dbus-python
+sphinx-click
+cookiecutter
+pycodestyle
