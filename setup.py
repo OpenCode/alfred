@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(
     name='alfred',
-    version='3.0.0',
+    version='3.0.1',
     description='Alfred',
     url='https://github.com/OpenCode/alfred',
     author='Francesco Apruzzese',
@@ -30,6 +30,7 @@ setup(
         'dbus-python',
         'cookiecutter',
         'pycodestyle',
+        'gitpython',
     ],
     entry_points={
         'console_scripts': ['alfred=alfred.core:script'],

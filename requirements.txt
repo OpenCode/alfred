@@ -6,3 +6,4 @@ dbus-python
 sphinx-click
 cookiecutter
 pycodestyle
+gitpython

@@ -2,10 +2,17 @@
 # License GPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
 import os
+import re
 import click
+import git
 # from cookiecutter.main import cookiecutter
 import pycodestyle
 from termcolor import colored
+
+REGEX_GIT_DIFF_OLD_LINE = \
+    r'\-(.+)(\'|\")version(\'|\")(.|):(\s|)(\'|\")(.+)(\'|\")'
+REGEX_GIT_DIFF_NEW_LINE = \
+    r'\+(.+)(\'|\")version(\'|\")(.|):(\s|)(\'|\")(.+)(\'|\")'
 
 '''
 DEPRECATED in MIGRATION 2.0 -> 3.0
@@ -44,9 +51,9 @@ def _prepare_commit_check_pep(arguments):
     else:
         response = 'positive'
         message = 'It\'s all OK!'
-    return {
+    return [{
         'response': response,
-        'message': message}
+        'message': message}]
 
 
 def _prepare_commit_check_pdb(arguments):
@@ -78,7 +85,57 @@ def _prepare_commit_check_pdb(arguments):
     else:
         response = 'positive'
         message = 'It\'s all OK!'
-    return {'response': response, 'message': message}
+    return [{'response': response, 'message': message}]
+
+
+def _prepare_commit_check_odoo_module_version(arguments):
+    """
+        Check if version of odoo module is changed
+    """
+    path = arguments['path']
+    repo = git.Repo(path)
+    diffs = repo.index.diff(None, create_patch=True)
+    if not diffs:
+        response = 'positive'
+        message = 'It\'s all OK!'
+        return {'response': response, 'message': message}
+    manifest_diffs = [
+        diff
+        for diff
+        in diffs
+        if diff.a_path.endswith('__manifest__.py') and not diff.new_file
+        ]
+    if not manifest_diffs:
+        response = 'error'
+        message = 'Change \'version\' key value in __manifest__.py'
+        return [{'response': response, 'message': message}]
+    responses = []
+    for manifest_diff in manifest_diffs:
+        old_version = ''
+        new_version = ''
+        diff = manifest_diff.diff.decode("utf-8")
+        changes = diff.split('\n')
+        for change in changes:
+            if not old_version:
+                search_old = re.search(REGEX_GIT_DIFF_OLD_LINE, change)
+                if search_old:
+                    old_version = search_old.group(7)
+            if not new_version:
+                search_new = re.search(REGEX_GIT_DIFF_NEW_LINE, change)
+                if search_new:
+                    new_version = search_new.group(7)
+        if not old_version or not new_version:
+            response = 'error'
+            message = 'Change \'version\' key value in {mnf}'.format(
+                mnf=manifest_diff.a_path
+                )
+        else:
+            response = 'positive'
+            message = \
+                f'Version changed: ' \
+                f'{old_version} -> {new_version} in {manifest_diff.a_path}'
+        responses.append({'response': response, 'message': message})
+    return responses
 
 
 @click.command()
@@ -99,6 +156,11 @@ def prepare_commit(path=None):
             'function': _prepare_commit_check_pdb,
             'arguments': {'path': path},
             },
+        'check_odoo_module_version': {
+            'header': 'Check Odoo Module Version',
+            'function': _prepare_commit_check_odoo_module_version,
+            'arguments': {'path': path},
+            },
         }
     total_steps = len(steps.keys())
     # For every step print an header message, execute a function
@@ -110,10 +172,11 @@ def prepare_commit(path=None):
                 total_steps=total_steps,
                 header=steps[step]['header']
                 ))
-        result = steps[step]['function'](steps[step]['arguments'])
-        if result['response'] == 'error':
-            color = 'red'
-        else:
-            color = 'green'
-        log_message = colored(result['message'], color)
-        click.echo(log_message)
+        results = steps[step]['function'](steps[step]['arguments'])
+        for result in results:
+            if result['response'] == 'error':
+                color = 'red'
+            else:
+                color = 'green'
+            log_message = colored(result['message'], color)
+            click.echo(log_message)
