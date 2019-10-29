@@ -98,7 +98,7 @@ def _prepare_commit_check_odoo_module_version(arguments):
     if not diffs:
         response = 'positive'
         message = 'It\'s all OK!'
-        return {'response': response, 'message': message}
+        return [{'response': response, 'message': message}]
     manifest_diffs = [
         diff
         for diff
