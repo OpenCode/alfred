@@ -8,11 +8,16 @@ from .postgresql import get_crons, disable_crons, \
     reset_admin_password, \
     createdb, dropdb, restoredb
 from .development import prepare_commit
+from .pennyworth import say
 
 
 @click.group('alfred_command')
 def alfred_command():
-    pass
+    alfred_say, quote = say()
+    click.echo('-' * len(quote))
+    click.echo(alfred_say)
+    click.echo(quote)
+    click.echo('-' * len(quote))
 
 
 # ----- Register tools functions
