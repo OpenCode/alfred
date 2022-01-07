@@ -8,13 +8,22 @@ from prettytable import PrettyTable
 from .tools import crypt_password, notify
 import os
 import subprocess
+import platform
 
 
 @click.command()
 @click.option('-b', '--backup', required=True, help='Backup file path to fox')
 def fix_postgres_version(backup):
     click.echo('Fix postegres problem version on backup file %s' % backup)
-    subprocess.call(['sed', '-i', '-r', '-e', '/.+AS integer/d', backup])
+    if platform.system() == 'Windows':
+        try:
+            wsl_file_path = backup.replace('C:','/mnt/c').replace('\\','/')
+            subprocess.call(['wsl', 'sed', '-i', '-r', '-e', '/.+AS integer/d', wsl_file_path])
+        except subprocess.SubprocessError as e:
+            click.echo('Fix postegres problem version on backup file not supported. Skipping it.')
+            # TODO: add support for Windows without wsl
+    else:
+        subprocess.call(['sed', '-i', '-r', '-e', '/.+AS integer/d', backup])
 
 
 def get_pg_connection(db='', user='', password=''):
@@ -55,7 +64,7 @@ def get_crons(db, user, password):
     for record in records:
         ptable.add_row([record['id'],
                         'X' if record['active'] else ' ',
-                        record['name'], ])
+                        record.get('name', record['cron_name']), ])
     print(ptable)
     return records
 
@@ -66,7 +75,7 @@ def get_crons(db, user, password):
 @click.option('-p', '--password', default='odoo', show_default=True)
 @click.option('-c', '--crons', required=True,
               help='Id or ids of crons separateed by "," or ";".'
-              ' To disable all the crons use "*"')
+              ' To disable all the crons use "all"')
 @click.pass_context
 @click.confirmation_option(help='Are you sure you want to disable crons?')
 def disable_crons(ctx, db, user, password, crons):
@@ -78,7 +87,7 @@ def disable_crons(ctx, db, user, password, crons):
     if not conn and not cr:
         return
     # ------ Disable all cron records
-    if crons == '*':
+    if crons == 'all':
         query = 'UPDATE ir_cron SET active=false'
     # ------ Disable passed records
     else:
@@ -127,7 +136,7 @@ def get_smtp(db, user, password):
 @click.option('-p', '--password', default='odoo', show_default=True)
 @click.option('-s', '--smtp', required=True,
               help='Id or ids of smtp server separateed by "," or ";".'
-              ' To disable all the smtp server use "*"')
+              ' To disable all the smtp server use "all"')
 @click.pass_context
 @click.confirmation_option(help='Are you sure you want to disable smtp?')
 def disable_smtp(ctx, db, user, password, smtp):
@@ -137,7 +146,7 @@ def disable_smtp(ctx, db, user, password, smtp):
     # ------ Get cursor
     conn, cr = get_pg_connection(db=db, user=user, password=password)
     # ------ Disable all cron records
-    if smtp == '*':
+    if smtp == 'all':
         query = 'UPDATE ir_mail_server SET active=false'
     # ------ Disable passed records
     else:
@@ -163,15 +172,25 @@ def reset_admin_password(ctx, db, user, password):
     """
     # ------ Get cursor
     conn, cr = get_pg_connection(db=db, user=user, password=password)
-    query = "SELECT state FROM ir_module_module WHERE name = 'auth_crypt'"
-    cr.execute(query)
+    version_query = "SELECT latest_version FROM ir_module_module WHERE name = 'base'"
+    cr.execute(version_query)
     rows = cr.fetchall()
+    major_version = int(rows[0][0].split('.')[0])
     admin_password_value = 'admin'
     admin_password_field = 'password'
-    if rows[0][0] == 'installed':
+    if major_version > 8:
         admin_password_value = ctx.invoke(crypt_password,
                                           password=admin_password_value)
-        admin_password_field = 'password_crypt'
+    else:
+        query = "SELECT state FROM ir_module_module WHERE name = 'auth_crypt'"
+        cr.execute(query)
+        rows = cr.fetchall()
+
+        if rows[0][0] == 'installed':
+            admin_password_value = ctx.invoke(crypt_password,
+                                          password=admin_password_value)
+            admin_password_field = 'password_crypt'
+    
     query = "UPDATE res_users SET {field}='{value}' WHERE login='admin'".\
         format(field=admin_password_field, value=admin_password_value)
     cr.execute(query)
@@ -222,6 +241,10 @@ def restoredb(ctx, db, backup, type, fix, user, password):
     """
         Create a new db in postegresql, restore a backup and disable all crons
     """
+    if type == 'bz2' and platform.system() == 'Windows':
+            raise NotImplementedError('restore file type "{}"not supported on Windows'.format(type))
+            # TODO: add Windows support for bz2 type 
+
     # ----- Create database
     ctx.invoke(createdb, db=db, user=user)
     # ----- Fix Postgres version incompatibility from 10.X to 9.X
@@ -237,14 +260,14 @@ def restoredb(ctx, db, backup, type, fix, user, password):
                         shell=True)
     elif type == 'plain':
         subprocess.call(
-            'psql %s -U %s < %s' % (db, user, backup.replace('.bz2', '')),
+            'psql -d %s -U %s < %s' % (db, user, backup.replace('.bz2', '')),
             shell=True)
     # ----- Disable crons
     click.echo('Disable all crons for database %s' % db)
-    ctx.invoke(disable_crons, db=db, user=user, password=password, crons='*')
+    ctx.invoke(disable_crons, db=db, user=user, password=password, crons='all')
     # ----- Disable SMTP
     click.echo('Disable all smtp servers for database %s' % db)
-    ctx.invoke(disable_smtp, db=db, user=user, password=password, smtp='*')
+    ctx.invoke(disable_smtp, db=db, user=user, password=password, smtp='all')
     # ----- Change admin password to 'admin' to run base test without problem
     click.echo('Change admin password to "admin" for database %s' % db)
     ctx.invoke(reset_admin_password, db=db, user=user, password=password)

@@ -2,10 +2,15 @@
 # License GPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
 from passlib.hash import pbkdf2_sha512 as crypt
-import dbus
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import click
+import platform
+
+try:
+    import dbus
+except ImportError:
+    pass
 
 
 @click.command()
@@ -24,6 +29,9 @@ def crypt_password(password):
 @click.command()
 @click.option('-m', '--message')
 def notify(message):
+    if platform.system() == 'Windows':
+        return
+        # TODO: add notification support for Windows
     body = ''
     app_name = 'Alfred'
     app_icon = ''
@@ -46,6 +54,9 @@ def notify(message):
 @click.argument('start', required=True)
 @click.argument('end', required=True)
 def hours(start='', end=''):
+    """
+        Calculate difference in hours between start and end
+    """
     hour_start, minute_start = start.split(':')
     hour_end, minute_end = end.split(':')
     dt_start = datetime.strptime(

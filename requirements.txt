@@ -2,8 +2,9 @@ click
 passlib
 prettytable
 psycopg2-binary
-dbus-python
+dbus-python; sys_platform != 'win32'
 sphinx-click
 cookiecutter
 pycodestyle
 gitpython
+termcolor

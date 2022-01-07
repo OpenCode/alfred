@@ -2,6 +2,7 @@
 
 ## Installation
 
+### Linux
 
 Install dipendences from your distro repo
 
@@ -14,6 +15,17 @@ Then move to alfred folder
 as root do
 
     # pip3 install -r requirements.txt
+
+### Windows
+
+Install following software:
+
+* Python3
+* Git for Windows
+* PostgreSQL (possibly latest version)
+
+In case of pip compilation errors consider installing [Build Tools for VS](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019) (Select C++ build tools in the Workloads tab)
+
 
 ## Usage
 
@@ -32,3 +44,11 @@ Or install it with
 and use it as system software
 
     $ alfred COMMAND [OPTIONS]
+
+## Known Issues
+
+Following features are not supported on Windows:
+
+* Notification on 'restoredb' completion
+* -f option of 'restoredb' command (Only available if Windows Subsystem for Linux is installed)
+* .bz2 as file type to be passed to 'restoredb' completion. This kind of file must be decompressed and then passed as plain text

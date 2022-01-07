@@ -27,7 +27,7 @@ setup(
         'passlib',
         'prettytable',
         'psycopg2-binary',
-        'dbus-python',
+        'dbus-python; sys_platform != "win32"',
         'cookiecutter',
         'pycodestyle',
         'gitpython',
